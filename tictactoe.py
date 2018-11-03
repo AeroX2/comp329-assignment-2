@@ -10,6 +10,8 @@ def get_input(message,valid):
 
 class Game:
     def __init__(self,player1_first=True,player1_is_cross=True):
+        import operator
+
         self.player1_is_cross = player1_is_cross
         self.player1_move = player1_first
 
@@ -56,45 +58,28 @@ class Game:
             return False
         
     def check_boards(self, move, check):
-        x,y = move[1],move[2]
-        board = self.boards[move[0]]
-        board_transposed = list(zip(*board))
-        
-        #Normal board
-        column_win = all([cell==check for cell in board[y]])
-        if (column_win):
-            return True
-        row_win = all([cell==check for cell in board_transposed[x]])
-        if (row_win):
-            return True
-        
-        #TODO: Diagonals will need to be adapted with size ever changes
-        diagonal1_win = all([board[i][i]==check for i in range(self.size)])
-        if (diagonal1_win):
-            return True
-        diagonal2_win = all([board[-i-1][i]==check for i in range(self.size)])
-        if (diagonal2_win):
-            return True
-        
-        #3D Board 
-        up_win = all([self.boards[i][y][x]==check for i in range(self.size)])
-        if (up_win):
-            return True
-        
-        #3D Diagonals
-        down_win = all([self.boards[i][i][x]==check for i in range(self.size)])
-        if (down_win):
-            return True
-        right_win = all([self.boards[i][y][i]==check for i in range(self.size)])
-        if (right_win):
-            return True
-        
-        down_right_win = all([self.boards[i][i][i]==check for i in range(self.size)])
-        if (down_right_win):
-            return True
-        down_left_win = all([self.boards[i][i][-i-1]==check for i in range(self.size)])
-        if (down_left_win):
-            return True
+        for direction in [(0,0,1),(0,1,0),(0,1,1),(1,0,0),(1,0,1),
+                          (1,1,0),(1,1,1),(0,-1,1),(-1,0,1),(-1,1,0),
+                          (-1,1,1),(1,-1,1),(1,1,-1)]:
+
+            total = 1
+            for _ in range(2):
+                new_pos = tuple(map(sum,zip(move,direction)))
+                while True:
+                    if (any([x<0 or x>=self.size for x in new_pos])):
+                        break
+
+                    new_space = self.boards[new_pos[0]][new_pos[2]][new_pos[1]]
+                    if (new_space != check):
+                        break
+
+                    total += 1
+                    new_pos = tuple(map(sum,zip(new_pos,direction)))
+                direction = tuple(map(lambda x: -x,direction))
+
+            if (total >= self.size):
+                return True
+        return False
 
     def move_ends_game(self,move):
         return self.check_boards(move,True) or self.check_boards(move,False)

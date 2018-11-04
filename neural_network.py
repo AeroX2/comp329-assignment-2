@@ -46,7 +46,7 @@ class MLPClassifierOverride(MLPRegressor):
 
         return coef_init, intercept_init
 
-def evaluate_game(mlp1):
+def evaluate_game(mlp1, mlp2):
     mf = np.vectorize(lambda x: 0.5 if x is None else float(x))
 
     game = Game()
@@ -54,60 +54,74 @@ def evaluate_game(mlp1):
     depth = 0
     mistakes = 0
 
-    average = 0.0
-    for _ in range(10):
-        while (result not in [-1,0,1]):
-            #print(result)
-            #game.print_boards()
+    while (result not in [-1,0,1]):
+        #print(result)
+        #game.print_boards()
 
-            depth += 1
-            if (game.player1_move):
-                translate = mf(np.array(game.boards).flatten())
-                moves = mlp1.predict([translate])[0]
-                moves = [z[1] for z in sorted([(x,i) for i,x in enumerate(moves)])]
+        depth += 1
+        if (game.player1_move):
+            translate = mf(np.array(game.boards).flatten())
+            moves = mlp1.predict([translate])[0]
+            moves = [z[1] for z in sorted([(x,i) for i,x in enumerate(moves)])]
 
-                for move in moves:
+            for move in moves:
 
-                    board = move // 9
-                    y = (move % 9) // 3
-                    x = move % 3
-                    move = (board,x,y)
-                    #print("Player1: Trying move", move)
+                board = move // 9
+                y = (move % 9) // 3
+                x = move % 3
+                move = (board,x,y)
+                #print("Player1: Trying move", move)
 
-                    result = game.play(move)
-                    if (result != -2):
-                        #print("Move made")
-                        break
-                    mistakes += 1
-            else:
-                move = game.get_computer_move()
                 result = game.play(move)
-                #game.print_boards()
-
-        if (mistakes == 0):
-            mistakes = 1
-
-        if (result == 1):
-            average += (10.0) #+depth*3)/mistakes
-        elif (result == -1):
-            average += (-10.0) #+depth*3)/mistakes
-        elif (result == 0):
-            average += 1000.0
+                if (result != -2):
+                    #print("Move made")
+                    break
+                mistakes += 1
         else:
-            print("This should never happen")
-            return None
+            translate = mf(np.array(game.boards).flatten())
+            moves = mlp2.predict([translate])[0]
+            moves = [z[1] for z in sorted([(x,i) for i,x in enumerate(moves)])]
+             #print("Wat",moves)
+            for move in moves:
+                board = move // 9
+                y = (move % 9) // 3
+                x = move % 3
+                move = (board,x,y)
+                #print("Player2: Trying move", move)
+                result = game.play(move)
+                if (result != -2):
+                    #print("Move made")
+                    break
 
-    return (average/10.0,)
+    if (result == 1):
+        return (10,depth,mistakes)
+    elif (result == -1):
+        return (-10,depth,mistakes)
+    elif (result == 0):
+        return (20,depth,mistakes)
+    else:
+        print("This should never happen")
+        return None
+
     
 def mapOverride(f,l):
     return [f(x,l,i) for i,x in enumerate(l)] 
 
-def evaluation(current_individual):
-    current_mlp = MLPClassifierOverride()
-    current_mlp.init_weights(current_individual)
-    current_mlp.fit([[0.0]*3*3*3,[0.0]*3*3*3], [[0.1]*3*3*3,[0.1]*3*3*3])
+def evaluation(current_individual, l, i):
+    averages = []
+    for ii,x in enumerate(l):
+        current_mlp = MLPClassifierOverride()
+        current_mlp.init_weights(current_individual)
+        current_mlp.fit([[0.0]*3*3*3,[0.0]*3*3*3], [[0.1]*3*3*3,[0.1]*3*3*3])
 
-    return evaluate_game(current_mlp)
+        previous_mlp = MLPClassifierOverride()
+        previous_mlp.init_weights(x)
+        previous_mlp.fit([[0.0]*3*3*3,[0.0]*3*3*3], [[0.1]*3*3*3,[0.1]*3*3*3])
+
+        averages.append(evaluate_game(current_mlp, previous_mlp))
+
+    averages = tuple(sum(x)/len(averages) for x in zip(*averages))
+    return averages
 
 def selectOverride(pop, l):
     return tools.selBest(pop,k=3)+tools.selTournament(pop,l-3,tournsize=3)
@@ -116,7 +130,7 @@ toolbox = base.Toolbox()
 
 #w=np.random.randn(layer_size[l],layer_size[l-1])*np.sqrt(2/layer_size[l-1])
 
-creator.create("FitnessMax", base.Fitness, weights=(1.0,))
+creator.create("FitnessMax", base.Fitness, weights=(1.0,1.0,-1.0))
 creator.create("Individual", list, fitness=creator.FitnessMax)
 
 n = (3*3*3 * 100) + 100 + (100 * 3*3*3) + 3*3*3 # Input size + Hidden layer size + biases
@@ -126,7 +140,7 @@ toolbox.register("individual", tools.initRepeat, creator.Individual,
 
 toolbox.register("population", tools.initRepeat, list, 
                  toolbox.individual)
-#toolbox.register("map", mapOverride)
+toolbox.register("map", mapOverride)
 toolbox.register("evaluate", evaluation)
 
 toolbox.register("mate", tools.cxTwoPoint)
@@ -142,7 +156,7 @@ fit_stats.register('min', np.min)
 fit_stats.register('max', np.max)
 
 ngen = 200
-pop = toolbox.population(n=50)
+pop = toolbox.population(n=20)
 result, log = algorithms.eaSimple(pop, toolbox,
                              cxpb=0.5, mutpb=0.5,
                              ngen=ngen, verbose=True,

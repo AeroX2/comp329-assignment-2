@@ -55,6 +55,9 @@ def evaluate_game(mlp1):
     mistakes = 0
 
     average = 0.0
+    average_depth = 0.0
+    average_mistakes = 0.0
+
     for _ in range(10):
         while (result not in [-1,0,1]):
             #print(result)
@@ -88,16 +91,20 @@ def evaluate_game(mlp1):
             mistakes = 1
 
         if (result == 1):
-            average += (10.0) #+depth*3)/mistakes
+            average += (10.0)
+            average_depth += depth
+            average_mistakes += mistakes
         elif (result == -1):
-            average += (-10.0) #+depth*3)/mistakes
+            average += (-10.0)
+            average_depth += depth
+            average_mistakes += mistakes
         elif (result == 0):
             average += 1000.0
         else:
             print("This should never happen")
             return None
 
-    return (average/10.0,)
+    return (average/10.0,average_depth/10.0,average_mistakes/10.0)
     
 def mapOverride(f,l):
     return [f(x,l,i) for i,x in enumerate(l)] 
@@ -116,7 +123,7 @@ toolbox = base.Toolbox()
 
 #w=np.random.randn(layer_size[l],layer_size[l-1])*np.sqrt(2/layer_size[l-1])
 
-creator.create("FitnessMax", base.Fitness, weights=(1.0,))
+creator.create("FitnessMax", base.Fitness, weights=(1.0,1.0,-1.0))
 creator.create("Individual", list, fitness=creator.FitnessMax)
 
 n = (3*3*3 * 100) + 100 + (100 * 3*3*3) + 3*3*3 # Input size + Hidden layer size + biases
@@ -141,7 +148,7 @@ fit_stats.register('mean', np.mean)
 fit_stats.register('min', np.min)
 fit_stats.register('max', np.max)
 
-ngen = 200
+ngen = 1000
 pop = toolbox.population(n=50)
 result, log = algorithms.eaSimple(pop, toolbox,
                              cxpb=0.5, mutpb=0.5,
